@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PMR Tuner</title>
+<meta name="description" content="PMR446 channels and CTCSS codes to frequencies and tones, and back.">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="PMR">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#F8F5F0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0D0F13" media="(prefers-color-scheme: dark)">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap">
+<style>
+/* Unibrow foundations: sticky two-part readout (doubles as tab switcher) over a big-target grid. */
+:root {
+  --ground: #F8F5F0; --surface: #FFFFFF; --surface-raised: #F9FAFB; --surface-sunken: #EEF0F3;
+  --line: #DDE1E7; --line-strong: #C6CCD5;
+  --ink-900: #11141A; --ink-700: #3A404B; --ink-500: #5B6472; --ink-400: #7A8290;
+  --primary: #C4460C; --primary-hover: #9A3409; --on-primary: #FFFFFF;
+  --brow: #F26B1D; --focus: #3730D4; --selection: #EEEDFE; --on-selection: #17135E;
+  --sans: "IBM Plex Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-6: 24px;
+  --r-sm: 4px; --r-inner: 6px; --r-md: 8px; --r-pill: 999px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #0D0F13; --surface: #161A21; --surface-raised: #1C212A; --surface-sunken: #222832;
+    --line: #2A303B; --line-strong: #3A4250;
+    --ink-900: #ECEEF2; --ink-700: #C3C8D1; --ink-500: #9AA2AF; --ink-400: #6B7380;
+    --primary: #F26B1D; --primary-hover: #FF8A3D; --on-primary: #1A0A02;
+    --brow: #FF8A3D; --focus: #A5A1FF; --selection: #24215A; --on-selection: #DCDAFC;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #0D0F13; --surface: #161A21; --surface-raised: #1C212A; --surface-sunken: #222832;
+  --line: #2A303B; --line-strong: #3A4250;
+  --ink-900: #ECEEF2; --ink-700: #C3C8D1; --ink-500: #9AA2AF; --ink-400: #6B7380;
+  --primary: #F26B1D; --primary-hover: #FF8A3D; --on-primary: #1A0A02;
+  --brow: #FF8A3D; --focus: #A5A1FF; --selection: #24215A; --on-selection: #DCDAFC;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; min-height: 100vh; min-height: 100dvh;
+  background: var(--ground); color: var(--ink-900);
+  font: 400 14px/20px var(--sans);
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+button { font: inherit; color: inherit; cursor: pointer; touch-action: manipulation; }
+button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.app { max-width: 520px; margin: 0 auto; }
+
+/* Sticky readout with the brow capping it */
+.top {
+  position: sticky; top: 0; z-index: 5;
+  background: var(--ground);
+  border-top: 3px solid var(--brow);
+  padding-top: calc(env(safe-area-inset-top, 0px) + var(--s-3));
+  padding-bottom: var(--s-3);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.readout { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-2); }
+.cell {
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--s-1);
+  min-width: 0; text-align: left;
+  padding: var(--s-3) var(--s-4);
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md);
+  transition: border-color .15s, box-shadow .15s;
+}
+.cell[aria-selected="true"] { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
+.label {
+  font: 600 12px/16px var(--sans); letter-spacing: .06em; text-transform: uppercase;
+  color: var(--ink-500); display: flex; gap: var(--s-2); align-items: baseline;
+}
+.big {
+  font: 600 44px/48px var(--sans); font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em; white-space: nowrap;
+}
+.sub {
+  font: 400 15px/20px var(--mono); font-variant-numeric: tabular-nums;
+  color: var(--ink-700); white-space: nowrap;
+}
+.sub .dim { color: var(--ink-400); }
+.unit { font: 400 12px/16px var(--mono); color: var(--ink-500); }
+
+/* Grid area */
+main {
+  padding-top: var(--s-2);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--s-6));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--s-2); }
+.key {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  min-height: 68px; padding: var(--s-2) var(--s-1);
+  background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--r-sm);
+  transition: background-color .12s, transform .08s;
+}
+.key:active { transform: scale(.96); }
+.key .n { font: 600 22px/26px var(--sans); font-variant-numeric: tabular-nums; }
+.key .v { font: 400 12px/16px var(--mono); color: var(--ink-500); font-variant-numeric: tabular-nums; }
+.key[aria-pressed="true"] { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+.key[aria-pressed="true"] .v { color: var(--on-primary); opacity: .85; }
+.key.off { grid-column: span 4; min-height: 48px; flex-direction: row; gap: var(--s-2); }
+.key.off .n { font-size: 16px; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } .key:active { transform: none; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="readout" role="tablist">
+      <button class="cell" id="tab-ch" role="tab" aria-controls="panel" aria-selected="true">
+        <span class="label">PMR</span>
+        <span class="big" id="out-ch">1</span>
+        <span class="sub"><span id="out-freq"></span> <span class="unit">MHz</span></span>
+      </button>
+      <button class="cell" id="tab-tone" role="tab" aria-controls="panel" aria-selected="false">
+        <span class="label">CTCSS</span>
+        <span class="big" id="out-code">–</span>
+        <span class="sub"><span id="out-hz"></span> <span class="unit" id="out-unit">Hz</span></span>
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <div class="grid" id="panel" role="tabpanel"></div>
+  </main>
+</div>
+
+<script>
+// PMR446 channels: 446.00625 MHz + 12.5 kHz steps. Held in Hz to avoid float drift.
+const CHANNELS = Array.from({ length: 16 }, (_, i) => 446006250 + i * 12500);
+// CTCSS codes 1–51 as printed on the radio's table (39 and 40 are out of order on purpose).
+const TONES = [67.0, 71.9, 74.4, 77.0, 79.7, 82.5, 85.4, 88.5, 91.5, 94.8,
+  97.4, 100.0, 103.5, 107.2, 110.9, 114.8, 118.8, 123.0, 127.3, 131.8,
+  136.5, 141.3, 146.2, 151.4, 156.7, 162.2, 167.9, 173.8, 179.9, 186.2,
+  192.8, 203.5, 210.7, 218.1, 225.7, 233.6, 241.8, 250.3, 69.3, 62.5,
+  159.8, 165.5, 171.3, 177.3, 183.5, 189.9, 196.6, 199.5, 206.5, 229.1, 254.1];
+
+const $ = (id) => document.getElementById(id);
+const state = { ch: 1, code: 0, tab: "ch" };
+try { Object.assign(state, JSON.parse(localStorage.getItem("pmr") || "{}")); } catch (e) {}
+
+const mhz = (hz) => (hz / 1e6).toFixed(5);           // "446.05625"
+const tail = (hz) => mhz(hz).slice(3);                // ".05625"
+const hzText = (code) => code ? TONES[code - 1].toFixed(1) : "Off";
+
+function save() { try { localStorage.setItem("pmr", JSON.stringify(state)); } catch (e) {} }
+function buzz() { if (navigator.vibrate) navigator.vibrate(8); }
+
+function key(n, v, pressed, onTap, cls = "") {
+  const b = document.createElement("button");
+  b.className = "key " + cls;
+  b.setAttribute("aria-pressed", pressed);
+  b.innerHTML = `<span class="n">${n}</span>${v ? `<span class="v">${v}</span>` : ""}`;
+  b.addEventListener("click", () => { onTap(); buzz(); render(); save(); });
+  return b;
+}
+
+function renderReadout() {
+  const f = mhz(CHANNELS[state.ch - 1]);
+  $("out-ch").textContent = state.ch;
+  $("out-freq").innerHTML = `<span class="dim">${f.slice(0, 4)}</span>${f.slice(4)}`;
+  $("out-code").textContent = state.code || "Off";
+  $("out-hz").textContent = state.code ? hzText(state.code) : "No tone";
+  $("out-unit").style.visibility = state.code ? "visible" : "hidden";
+  $("tab-ch").setAttribute("aria-selected", state.tab === "ch");
+  $("tab-tone").setAttribute("aria-selected", state.tab === "tone");
+}
+
+function renderPanel() {
+  const panel = $("panel");
+  panel.replaceChildren();
+
+  if (state.tab === "ch") {
+    CHANNELS.forEach((hz, i) => {
+      const n = i + 1;
+      panel.append(key(n, tail(hz), state.ch === n, () => { state.ch = n; }));
+    });
+    return;
+  }
+
+  panel.append(key("Off", "", state.code === 0, () => { state.code = 0; }, "off"));
+  TONES.forEach((_, i) => {
+    const c = i + 1;
+    panel.append(key(c, hzText(c), state.code === c, () => { state.code = c; }));
+  });
+}
+
+function render() { renderReadout(); renderPanel(); }
+
+function tab(t) { if (state.tab !== t) { state.tab = t; buzz(); render(); save(); window.scrollTo({ top: 0 }); } }
+$("tab-ch").addEventListener("click", () => tab("ch"));
+$("tab-tone").addEventListener("click", () => tab("tone"));
+
+render();
+
+if ("serviceWorker" in navigator && location.protocol !== "file:") {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
+</script>
+</body>
+</html>
